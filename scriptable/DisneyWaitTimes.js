@@ -93,8 +93,29 @@ const waitColor = r => !r.open ? Color.gray()
   : r.wait >= 60 ? Color.red() : r.wait >= 30 ? Color.orange() : Color.green();
 const waitText = r => r.open ? `${r.wait} min` : "Closed";
 
+// ---------- Lightning Lane bookings from your calendar ----------
+// Any upcoming event today whose title/notes mention Lightning Lane / FastPass / Genie+.
+const LL_RE = /lightning lane|fast ?pass|genie\+|\bILL\b|\bMLL\b/i;
+async function getLightningLanes() {
+  try {
+    const now = new Date();
+    const eod = new Date(); eod.setHours(23, 59, 59, 0);
+    const events = await CalendarEvent.between(now, eod);
+    return events
+      .filter(e => !e.isAllDay && LL_RE.test(`${e.title} ${e.notes || ""}`))
+      .sort((a, b) => a.startDate - b.startDate)
+      .map(e => ({
+        title: e.title.replace(LL_RE, "").replace(/^[\s:\-–—|]+|[\s:\-–—|]+$/g, "") || e.title,
+        start: e.startDate
+      }));
+  } catch (e) { return []; }   // no calendar permission -> just skip
+}
+const fmtTime = d => {
+  const f = new DateFormatter(); f.dateFormat = "h:mm a"; return f.string(d);
+};
+
 // ---------- UI ----------
-async function showTable(info, rides) {
+async function showTable(info, rides, lls) {
   const table = new UITable();
   table.showSeparators = true;
 
@@ -108,6 +129,21 @@ async function showTable(info, rides) {
   title.titleFont = Font.boldSystemFont(20);
   title.subtitleColor = Color.gray();
   table.addRow(head);
+
+  if (lls.length) {
+    const h = new UITableRow();
+    h.backgroundColor = new Color("#ff9500", 0.2);
+    h.addText("⚡ Your Lightning Lanes today").titleFont = Font.boldSystemFont(14);
+    table.addRow(h);
+    for (const l of lls) {
+      const row = new UITableRow();
+      row.dynamicHeight = true;
+      const c = row.addText(l.title); c.widthWeight = 70; c.lineLimit = 0;
+      const t = row.addText(fmtTime(l.start));
+      t.widthWeight = 30; t.rightAligned(); t.titleColor = Color.orange();
+      table.addRow(row);
+    }
+  }
 
   const addSection = (label, list) => {
     if (!list.length) return;
@@ -146,13 +182,13 @@ async function showTable(info, rides) {
   await table.present();
 }
 
-function buildWidget(info, rides) {
+function buildWidget(info, rides, lls) {
   // Pack in as many rides as fit: columns and rows depend on widget size.
   const layouts = {            // [columns, rows per column]
-    small: [1, 7], medium: [1, 6], large: [1, 15], extraLarge: [1, 15]
+    small: [1, 5], medium: [1, 4], large: [1, 11], extraLarge: [1, 12]
   };
   const [cols, perCol] = layouts[config.widgetFamily] || layouts.medium;
-  const fs = config.widgetFamily === "small" ? 9 : 10;
+  const fs = config.widgetFamily === "small" ? 12 : 14;
 
   const w = new ListWidget();
   w.backgroundColor = new Color("#0b1d3a");
@@ -161,15 +197,22 @@ function buildWidget(info, rides) {
 
   const t = w.addText(info.park.name +
     (!info.pinned && !info.inPark ? ` · ${info.distance.toFixed(0)} km` : ""));
-  t.font = Font.boldSystemFont(12); t.textColor = Color.white();
+  t.font = Font.boldSystemFont(fs + 2); t.textColor = Color.white();
   t.lineLimit = 1; t.minimumScaleFactor = 0.7;
   w.addSpacer(3);
 
   // Popular open rides (shortest first), then other open rides to fill remaining space.
   const open = rides.filter(r => r.open);
+  const llShown = lls.slice(0, 2);
+  const slots = Math.max(1, cols * perCol - llShown.length);
   const list = [...sortRides(open.filter(isPopular)),
-                ...sortRides(open.filter(r => !isPopular(r)))].slice(0, cols * perCol);
+                ...sortRides(open.filter(r => !isPopular(r)))].slice(0, slots);
 
+  for (const l of llShown) {
+    const lr = w.addText(`⚡ ${fmtTime(l.start)} ${l.title}`);
+    lr.font = Font.boldSystemFont(fs); lr.textColor = Color.orange();
+    lr.lineLimit = 1; lr.minimumScaleFactor = 0.6;
+  }
   const body = w.addStack();
   body.spacing = 8;
   for (let c = 0; c < cols; c++) {
@@ -189,7 +232,7 @@ function buildWidget(info, rides) {
   }
   w.addSpacer();
   const a = w.addText("Queue-Times.com");
-  a.font = Font.systemFont(7); a.textColor = Color.gray();
+  a.font = Font.systemFont(8); a.textColor = Color.gray();
   return w;
 }
 
@@ -198,9 +241,10 @@ try {
   const parks = await getDisneyParks();
   const info = await pickPark(parks);
   const rides = await getRides(info.park.id);
+  const lls = await getLightningLanes();
 
   if (config.runsInWidget) {
-    Script.setWidget(buildWidget(info, rides));
+    Script.setWidget(buildWidget(info, rides, lls));
   } else if (config.runsWithSiri) {
     const open = rides.filter(r => r.open);
     const pop = open.filter(isPopular);
@@ -208,7 +252,7 @@ try {
       .map(r => `${r.name}, ${r.wait} minutes`).join(". ");
     Speech.speak(`${info.park.name}. Popular rides, shortest wait first: ${top}`);
   } else {
-    await showTable(info, rides);
+    await showTable(info, rides, lls);
   }
 } catch (e) {
   if (config.runsInWidget) {
