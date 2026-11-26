@@ -13,7 +13,7 @@
 //   - Siri/Shortcuts: reads out the 5 longest waits.
 
 const RADIUS_KM = 3;          // "in the park" radius
-const MAX_WIDGET_ROWS = 6;
+const MAX_WIDGET_ROWS = 5;
 const API = "https://queue-times.com";
 
 // ---------- Location + park detection ----------
@@ -115,8 +115,11 @@ async function showTable(info, rides) {
     table.addRow(h);
     for (const r of sortRides(list)) {
       const row = new UITableRow();
-      row.height = 44;
-      row.addText(r.name).widthWeight = 70;
+      row.dynamicHeight = true;   // let the row grow to fit the full title
+      row.cellSpacing = 8;
+      const nameCell = row.addText(r.name);
+      nameCell.widthWeight = 70;
+      nameCell.lineLimit = 0;     // 0 = no truncation
       const w = row.addText(waitText(r));
       w.widthWeight = 30; w.rightAligned(); w.titleColor = waitColor(r);
       table.addRow(row);
@@ -160,7 +163,7 @@ function buildWidget(info, rides) {
   for (const r of top) {
     const row = w.addStack();
     const n = row.addText(r.name);
-    n.font = Font.systemFont(11); n.textColor = Color.white(); n.lineLimit = 1;
+    n.font = Font.systemFont(11); n.textColor = Color.white(); n.lineLimit = 2;
     row.addSpacer();
     const m = row.addText(`${r.wait}`);
     m.font = Font.boldSystemFont(11); m.textColor = waitColor(r);
