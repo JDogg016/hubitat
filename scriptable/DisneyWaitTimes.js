@@ -46,7 +46,20 @@ async function pickPark(parks) {
     if (m) return { park: m, distance: null, pinned: true };
   }
   Location.setAccuracyToHundredMeters();
-  const loc = await Location.current();
+  let loc;
+  try {
+    loc = await Location.current();
+    try { Keychain.set("disney_last_loc", JSON.stringify(loc)); } catch (e) {}
+  } catch (e) {
+    // Location failed (often: permission denied, or widget couldn't get a fix).
+    // Fall back to the last location saved from a successful run.
+    try { loc = JSON.parse(Keychain.get("disney_last_loc")); } catch (e2) {}
+    if (!loc) {
+      throw new Error("Can't get your location. Open Settings > Privacy & Security > " +
+        "Location Services > Scriptable and choose 'While Using' or 'Always', " +
+        "then run this script once inside the Scriptable app.");
+    }
+  }
   const ranked = parks
     .map(p => ({ park: p, distance: distKm(loc.latitude, loc.longitude, p.lat, p.lon) }))
     .sort((a, b) => a.distance - b.distance);
