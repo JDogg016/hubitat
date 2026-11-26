@@ -97,6 +97,37 @@ const POPULAR = [
 const norm = n => n.toLowerCase().replace(/[\u2018\u2019]/g, "'");
 const isPopular = r => POPULAR.some(k => norm(r.name).includes(k));
 
+// Emoji icon per ride type (first matching keyword wins).
+const ICONS = [
+  [/space mountain|tron|hyperspace|rocket|mission: space/, "🚀"],
+  [/rise of the resistance|millennium falcon|star tours|star wars/, "🛸"],
+  [/guardians|breakout/, "🌌"],
+  [/haunted mansion/, "👻"],
+  [/tower of terror/, "🏨"],
+  [/pirates/, "🏴‍☠️"],
+  [/splash|tiana|bayou|rapids|river|log|na'vi/, "🌊"],
+  [/jungle cruise|safari|kilimanjaro/, "🦁"],
+  [/dinosaur/, "🦖"],
+  [/flight of passage|avatar/, "🐉"],
+  [/frozen/, "❄️"],
+  [/ratatouille/, "🐀"],
+  [/soarin/, "🦅"],
+  [/toy story|buzz|slinky/, "🤠"],
+  [/peter pan|dumbo|flying|carousel/, "✈️"],
+  [/small world/, "🌍"],
+  [/pooh/, "🍯"],
+  [/test track|radiator|autopia|cars|racers/, "🏎️"],
+  [/indiana jones/, "🎩"],
+  [/runaway railway/, "🚂"],
+  [/mountain|coaster|rock 'n'|everest|mine train|matterhorn|crush|incredicoaster|web slingers/, "🎢"]
+];
+const iconFor = n => {
+  const k = norm(n);
+  const m = ICONS.find(([re]) => re.test(k));
+  return m ? m[1] : "🎠";
+};
+const label = r => `${iconFor(r.name)} ${r.name}`;
+
 // Open rides first, shortest wait -> longest; closed rides last.
 const byWait = (a, b) =>
   (b.open - a.open) || (a.wait - b.wait) || a.name.localeCompare(b.name);
@@ -168,7 +199,7 @@ async function showTable(info, rides, lls) {
       const row = new UITableRow();
       row.dynamicHeight = true;   // let the row grow to fit the full title
       row.cellSpacing = 8;
-      const nameCell = row.addText(r.name);
+      const nameCell = row.addText(label(r));
       nameCell.widthWeight = 70;
       nameCell.lineLimit = 0;     // 0 = no truncation
       const w = row.addText(waitText(r));
@@ -234,7 +265,7 @@ function buildWidget(info, rides, lls) {
     col.spacing = 1;
     for (const r of list.slice(c * perCol, (c + 1) * perCol)) {
       const row = col.addStack();
-      const n = row.addText(r.name);
+      const n = row.addText(label(r));
       n.font = Font.systemFont(fs); n.textColor = Color.white();
       n.lineLimit = 1; n.minimumScaleFactor = 0.6;
       row.addSpacer(2);
