@@ -57,9 +57,12 @@ async function pickPark(parks) {
 async function getRides(parkId) {
   const data = await new Request(`${API}/parks/${parkId}/queue_times.json`).loadJSON();
   const rides = [];
-  const collect = r => rides.push({
-    name: r.name, wait: r.wait_time, open: r.is_open
-  });
+  // Skip parades, fireworks and character meet & greets: only real rides/attractions.
+  const SKIP = /parade|cavalcade|fireworks|festival of fantasy|dance party|\bmeet\b|greet|character|\bphoto\b/i;
+  const collect = r => {
+    if (SKIP.test(r.name)) return;
+    rides.push({ name: r.name, wait: r.wait_time, open: r.is_open });
+  };
   (data.lands || []).forEach(l => l.rides.forEach(collect));
   (data.rides || []).forEach(collect);
   return rides;
@@ -146,7 +149,7 @@ async function showTable(info, rides) {
 function buildWidget(info, rides) {
   // Pack in as many rides as fit: columns and rows depend on widget size.
   const layouts = {            // [columns, rows per column]
-    small: [1, 7], medium: [2, 6], large: [2, 15], extraLarge: [3, 15]
+    small: [1, 7], medium: [1, 6], large: [1, 15], extraLarge: [1, 15]
   };
   const [cols, perCol] = layouts[config.widgetFamily] || layouts.medium;
   const fs = config.widgetFamily === "small" ? 9 : 10;
