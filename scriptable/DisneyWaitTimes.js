@@ -189,11 +189,11 @@ async function showTable(info, rides, lls) {
     }
   }
 
-  const addSection = (label, list) => {
+  const addSection = (heading, list) => {
     if (!list.length) return;
     const h = new UITableRow();
     h.backgroundColor = new Color("#888888", 0.15);
-    h.addText(label).titleFont = Font.boldSystemFont(14);
+    h.addText(heading).titleFont = Font.boldSystemFont(14);
     table.addRow(h);
     for (const r of sortRides(list)) {
       const row = new UITableRow();
