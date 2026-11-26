@@ -13,7 +13,6 @@
 //   - Siri/Shortcuts: reads out the 5 longest waits.
 
 const RADIUS_KM = 3;          // "in the park" radius
-const MAX_WIDGET_ROWS = 5;
 const API = "https://queue-times.com";
 
 // ---------- Location + park detection ----------
@@ -145,32 +144,49 @@ async function showTable(info, rides) {
 }
 
 function buildWidget(info, rides) {
+  // Pack in as many rides as fit: columns and rows depend on widget size.
+  const layouts = {            // [columns, rows per column]
+    small: [1, 7], medium: [2, 6], large: [2, 15], extraLarge: [3, 15]
+  };
+  const [cols, perCol] = layouts[config.widgetFamily] || layouts.medium;
+  const fs = config.widgetFamily === "small" ? 9 : 10;
+
   const w = new ListWidget();
   w.backgroundColor = new Color("#0b1d3a");
+  w.setPadding(8, 8, 6, 8);
   w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
 
-  const t = w.addText(info.park.name);
-  t.font = Font.boldSystemFont(14); t.textColor = Color.white();
-  if (!info.pinned && !info.inPark) {
-    const s = w.addText(`Nearest · ${info.distance.toFixed(0)} km away`);
-    s.font = Font.systemFont(10); s.textColor = Color.gray();
-  }
-  w.addSpacer(4);
+  const t = w.addText(info.park.name +
+    (!info.pinned && !info.inPark ? ` · ${info.distance.toFixed(0)} km` : ""));
+  t.font = Font.boldSystemFont(12); t.textColor = Color.white();
+  t.lineLimit = 1; t.minimumScaleFactor = 0.7;
+  w.addSpacer(3);
 
+  // Popular open rides (shortest first), then other open rides to fill remaining space.
   const open = rides.filter(r => r.open);
-  const pop = open.filter(isPopular);
-  const top = sortRides(pop.length ? pop : open).slice(0, MAX_WIDGET_ROWS);
-  for (const r of top) {
-    const row = w.addStack();
-    const n = row.addText(r.name);
-    n.font = Font.systemFont(11); n.textColor = Color.white(); n.lineLimit = 2;
-    row.addSpacer();
-    const m = row.addText(`${r.wait}`);
-    m.font = Font.boldSystemFont(11); m.textColor = waitColor(r);
+  const list = [...sortRides(open.filter(isPopular)),
+                ...sortRides(open.filter(r => !isPopular(r)))].slice(0, cols * perCol);
+
+  const body = w.addStack();
+  body.spacing = 8;
+  for (let c = 0; c < cols; c++) {
+    const col = body.addStack();
+    col.layoutVertically();
+    col.spacing = 1;
+    for (const r of list.slice(c * perCol, (c + 1) * perCol)) {
+      const row = col.addStack();
+      const n = row.addText(r.name);
+      n.font = Font.systemFont(fs); n.textColor = Color.white();
+      n.lineLimit = 1; n.minimumScaleFactor = 0.6;
+      row.addSpacer(2);
+      const m = row.addText(`${r.wait}`);
+      m.font = Font.boldSystemFont(fs); m.textColor = waitColor(r);
+    }
+    if (c < cols - 1) body.addSpacer();
   }
   w.addSpacer();
   const a = w.addText("Queue-Times.com");
-  a.font = Font.systemFont(8); a.textColor = Color.gray();
+  a.font = Font.systemFont(7); a.textColor = Color.gray();
   return w;
 }
 
