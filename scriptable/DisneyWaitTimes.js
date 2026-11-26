@@ -158,6 +158,12 @@ const fmtTime = d => {
   const f = new DateFormatter(); f.dateFormat = "h:mm a"; return f.string(d);
 };
 
+// ---------- Widget background image ("fake transparency") ----------
+// iOS has no truly transparent widgets. The standard workaround is a background
+// image cropped from your wallpaper. Pick one from the table's footer buttons.
+const fm = FileManager.local();
+const BG_PATH = fm.joinPath(fm.documentsDirectory(), "disney_widget_bg.jpg");
+
 // ---------- UI ----------
 async function showTable(info, rides, lls) {
   const table = new UITable();
@@ -217,6 +223,24 @@ async function showTable(info, rides, lls) {
   llb.centerAligned();
   table.addRow(ll);
 
+  const bg1 = new UITableRow();
+  const b1 = bg1.addButton("🖼️ Set widget background image");
+  b1.centerAligned();
+  b1.onTap = async () => {
+    try {
+      const img = await Photos.fromLibrary();
+      fm.writeImage(BG_PATH, img);
+      const a = new Alert(); a.title = "Saved"; a.message = "Widget background updated.";
+      await a.present();
+    } catch (e) {}
+  };
+  table.addRow(bg1);
+  const bg2 = new UITableRow();
+  const b2 = bg2.addButton("Reset widget background");
+  b2.centerAligned();
+  b2.onTap = () => { if (fm.fileExists(BG_PATH)) fm.remove(BG_PATH); };
+  table.addRow(bg2);
+
   const foot = new UITableRow();
   const f = foot.addButton("Wait times by Queue-Times.com");
   f.onTap = () => Safari.open(API);
@@ -235,7 +259,8 @@ function buildWidget(info, rides, lls) {
   const fs = config.widgetFamily === "small" ? 14 : 17;
 
   const w = new ListWidget();
-  w.backgroundColor = new Color("#0b1d3a");
+  if (fm.fileExists(BG_PATH)) w.backgroundImage = fm.readImage(BG_PATH);
+  else w.backgroundColor = new Color("#0b1d3a");
   w.setPadding(8, 8, 6, 8);
   w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
 
