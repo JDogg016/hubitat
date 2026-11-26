@@ -229,10 +229,10 @@ async function showTable(info, rides, lls) {
 function buildWidget(info, rides, lls) {
   // Pack in as many rides as fit: columns and rows depend on widget size.
   const layouts = {            // [columns, rows per column]
-    small: [1, 5], medium: [1, 4], large: [1, 11], extraLarge: [1, 12]
+    small: [1, 4], medium: [1, 3], large: [1, 9], extraLarge: [1, 10]
   };
   const [cols, perCol] = layouts[config.widgetFamily] || layouts.medium;
-  const fs = config.widgetFamily === "small" ? 12 : 14;
+  const fs = config.widgetFamily === "small" ? 14 : 17;
 
   const w = new ListWidget();
   w.backgroundColor = new Color("#0b1d3a");
