@@ -66,8 +66,26 @@ async function getRides(parkId) {
   return rides;
 }
 
-const sortRides = rides => rides.slice().sort((a, b) =>
-  (b.open - a.open) || (b.wait - a.wait) || a.name.localeCompare(b.name));
+// Headliner / most-recognized attractions across the parks (matched by name fragment).
+const POPULAR = [
+  "space mountain", "seven dwarfs", "big thunder", "tron", "haunted mansion",
+  "pirates of the caribbean", "jungle cruise", "peter pan", "tiana", "splash mountain",
+  "buzz lightyear", "guardians of the galaxy", "frozen ever after", "test track",
+  "ratatouille", "soarin", "mission: space", "rise of the resistance", "slinky dog",
+  "runaway railway", "millennium falcon", "tower of terror", "rock 'n' roller",
+  "toy story", "flight of passage", "na'vi river", "everest", "kilimanjaro",
+  "dinosaur", "indiana jones", "matterhorn", "star tours", "roger rabbit",
+  "radiator springs", "incredicoaster", "web slingers", "mission: breakout",
+  "crush's coaster", "hyperspace", "it's a small world", "dumbo", "winnie the pooh",
+  "avatar", "star wars", "cars"
+];
+const norm = n => n.toLowerCase().replace(/[\u2018\u2019]/g, "'");
+const isPopular = r => POPULAR.some(k => norm(r.name).includes(k));
+
+// Open rides first, shortest wait -> longest; closed rides last.
+const byWait = (a, b) =>
+  (b.open - a.open) || (a.wait - b.wait) || a.name.localeCompare(b.name);
+const sortRides = rides => rides.slice().sort(byWait);
 
 const waitColor = r => !r.open ? Color.gray()
   : r.wait >= 60 ? Color.red() : r.wait >= 30 ? Color.orange() : Color.green();
@@ -89,14 +107,30 @@ async function showTable(info, rides) {
   title.subtitleColor = Color.gray();
   table.addRow(head);
 
-  for (const r of sortRides(rides)) {
-    const row = new UITableRow();
-    row.height = 44;
-    row.addText(r.name).widthWeight = 70;
-    const w = row.addText(waitText(r));
-    w.widthWeight = 30; w.rightAligned(); w.titleColor = waitColor(r);
-    table.addRow(row);
-  }
+  const addSection = (label, list) => {
+    if (!list.length) return;
+    const h = new UITableRow();
+    h.backgroundColor = new Color("#888888", 0.15);
+    h.addText(label).titleFont = Font.boldSystemFont(14);
+    table.addRow(h);
+    for (const r of sortRides(list)) {
+      const row = new UITableRow();
+      row.height = 44;
+      row.addText(r.name).widthWeight = 70;
+      const w = row.addText(waitText(r));
+      w.widthWeight = 30; w.rightAligned(); w.titleColor = waitColor(r);
+      table.addRow(row);
+    }
+  };
+  addSection("⭐ Popular (shortest wait first)", rides.filter(isPopular));
+  addSection("Other attractions (shortest wait first)", rides.filter(r => !isPopular(r)));
+
+  // Lightning Lane (Disney's paid FastPass replacement) can't be booked from a script.
+  const ll = new UITableRow();
+  const llb = ll.addButton("Open Disney app / Lightning Lane");
+  llb.onTap = () => Safari.open("https://disneyworld.disney.go.com/");
+  llb.centerAligned();
+  table.addRow(ll);
 
   const foot = new UITableRow();
   const f = foot.addButton("Wait times by Queue-Times.com");
@@ -120,7 +154,9 @@ function buildWidget(info, rides) {
   }
   w.addSpacer(4);
 
-  const top = sortRides(rides).filter(r => r.open).slice(0, MAX_WIDGET_ROWS);
+  const open = rides.filter(r => r.open);
+  const pop = open.filter(isPopular);
+  const top = sortRides(pop.length ? pop : open).slice(0, MAX_WIDGET_ROWS);
   for (const r of top) {
     const row = w.addStack();
     const n = row.addText(r.name);
@@ -144,9 +180,11 @@ try {
   if (config.runsInWidget) {
     Script.setWidget(buildWidget(info, rides));
   } else if (config.runsWithSiri) {
-    const top = sortRides(rides).filter(r => r.open).slice(0, 5)
+    const open = rides.filter(r => r.open);
+    const pop = open.filter(isPopular);
+    const top = sortRides(pop.length ? pop : open).slice(0, 5)
       .map(r => `${r.name}, ${r.wait} minutes`).join(". ");
-    Speech.speak(`${info.park.name}. Longest waits: ${top}`);
+    Speech.speak(`${info.park.name}. Popular rides, shortest wait first: ${top}`);
   } else {
     await showTable(info, rides);
   }
