@@ -133,8 +133,17 @@ const byWait = (a, b) =>
   (b.open - a.open) || (a.wait - b.wait) || a.name.localeCompare(b.name);
 const sortRides = rides => rides.slice().sort(byWait);
 
-const waitColor = r => !r.open ? Color.gray()
-  : r.wait >= 60 ? Color.red() : r.wait >= 30 ? Color.orange() : Color.green();
+// Colors follow the system appearance (light/dark). In iOS Settings > Display & Brightness
+// choose "Automatic" to switch at sunset/sunrise.
+const dyn = (l, d) => Color.dynamic(new Color(l), new Color(d));
+const BG = dyn("#f5f7fb", "#0b1d3a");
+const FG = dyn("#111111", "#ffffff");
+const DIM = dyn("#6b7280", "#9ca3af");
+const ACCENT = dyn("#c93400", "#ff9f0a");
+const waitColor = r => !r.open ? DIM
+  : r.wait >= 60 ? dyn("#d70015", "#ff453a")
+  : r.wait >= 30 ? ACCENT
+  : dyn("#248a3d", "#30d158");
 const waitText = r => r.open ? `${r.wait} min` : "Closed";
 
 // ---------- Lightning Lane bookings from your calendar ----------
@@ -157,12 +166,6 @@ async function getLightningLanes() {
 const fmtTime = d => {
   const f = new DateFormatter(); f.dateFormat = "h:mm a"; return f.string(d);
 };
-
-// ---------- Widget background image ("fake transparency") ----------
-// iOS has no truly transparent widgets. The standard workaround is a background
-// image cropped from your wallpaper. Pick one from the table's footer buttons.
-const fm = FileManager.local();
-const BG_PATH = fm.joinPath(fm.documentsDirectory(), "disney_widget_bg.jpg");
 
 // ---------- UI ----------
 async function showTable(info, rides, lls) {
@@ -223,24 +226,6 @@ async function showTable(info, rides, lls) {
   llb.centerAligned();
   table.addRow(ll);
 
-  const bg1 = new UITableRow();
-  const b1 = bg1.addButton("🖼️ Set widget background image");
-  b1.centerAligned();
-  b1.onTap = async () => {
-    try {
-      const img = await Photos.fromLibrary();
-      fm.writeImage(BG_PATH, img);
-      const a = new Alert(); a.title = "Saved"; a.message = "Widget background updated.";
-      await a.present();
-    } catch (e) {}
-  };
-  table.addRow(bg1);
-  const bg2 = new UITableRow();
-  const b2 = bg2.addButton("Reset widget background");
-  b2.centerAligned();
-  b2.onTap = () => { if (fm.fileExists(BG_PATH)) fm.remove(BG_PATH); };
-  table.addRow(bg2);
-
   const foot = new UITableRow();
   const f = foot.addButton("Wait times by Queue-Times.com");
   f.onTap = () => Safari.open(API);
@@ -259,14 +244,13 @@ function buildWidget(info, rides, lls) {
   const fs = config.widgetFamily === "small" ? 14 : 17;
 
   const w = new ListWidget();
-  if (fm.fileExists(BG_PATH)) w.backgroundImage = fm.readImage(BG_PATH);
-  else w.backgroundColor = new Color("#0b1d3a");
+  w.backgroundColor = BG;
   w.setPadding(8, 8, 6, 8);
   w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
 
   const t = w.addText(info.park.name +
     (!info.pinned && !info.inPark ? ` · ${info.distance.toFixed(0)} km` : ""));
-  t.font = Font.boldSystemFont(fs + 2); t.textColor = Color.white();
+  t.font = Font.boldSystemFont(fs + 2); t.textColor = FG;
   t.lineLimit = 1; t.minimumScaleFactor = 0.7;
   w.addSpacer(3);
 
@@ -279,7 +263,7 @@ function buildWidget(info, rides, lls) {
 
   for (const l of llShown) {
     const lr = w.addText(`⚡ ${fmtTime(l.start)} ${l.title}`);
-    lr.font = Font.boldSystemFont(fs); lr.textColor = Color.orange();
+    lr.font = Font.boldSystemFont(fs); lr.textColor = ACCENT;
     lr.lineLimit = 1; lr.minimumScaleFactor = 0.6;
   }
   const body = w.addStack();
@@ -291,7 +275,7 @@ function buildWidget(info, rides, lls) {
     for (const r of list.slice(c * perCol, (c + 1) * perCol)) {
       const row = col.addStack();
       const n = row.addText(label(r));
-      n.font = Font.systemFont(fs); n.textColor = Color.white();
+      n.font = Font.systemFont(fs); n.textColor = FG;
       n.lineLimit = 1; n.minimumScaleFactor = 0.6;
       row.addSpacer(2);
       const m = row.addText(`${r.wait}`);
@@ -301,7 +285,7 @@ function buildWidget(info, rides, lls) {
   }
   w.addSpacer();
   const a = w.addText("Queue-Times.com");
-  a.font = Font.systemFont(8); a.textColor = Color.gray();
+  a.font = Font.systemFont(8); a.textColor = DIM;
   return w;
 }
 
